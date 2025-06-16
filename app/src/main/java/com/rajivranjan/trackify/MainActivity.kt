@@ -1,30 +1,24 @@
 package com.rajivranjan.trackify
 
-import android.os.Bundle
 import android.content.Context
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rajivranjan.trackify.model.Task
 import com.rajivranjan.trackify.ui.theme.TrackifyTheme
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.Alignment
-import kotlinx.coroutines.launch
 import com.rajivranjan.trackify.util.TaskDataStore
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-
-
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,12 +36,14 @@ fun TaskListScreen(context: Context) {
     val taskDataStore = remember { TaskDataStore(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    val tasksFlow = taskDataStore.tasksFlow.collectAsState(initial = emptySet())
-    var newTask by remember { mutableStateOf("") }
-    var tasks by remember { mutableStateOf(tasksFlow.value.toList()) }
+    var newTaskText by remember { mutableStateOf("") }
+    var isReminderSet by remember { mutableStateOf(false) }
 
-    LaunchedEffect(tasksFlow.value) {
-        tasks = tasksFlow.value.toList()
+    val tasksFlow by taskDataStore.tasksFlow.collectAsState(initial = emptyList())
+    var tasks by remember { mutableStateOf(tasksFlow) }
+
+    LaunchedEffect(tasksFlow) {
+        tasks = tasksFlow
     }
 
     Column(
@@ -57,28 +53,38 @@ fun TaskListScreen(context: Context) {
     ) {
         Text("Trackify Tasks", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
 
-        Row {
-            TextField(
-                value = newTask,
-                onValueChange = { newTask = it },
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = newTaskText,
+                onValueChange = { newTaskText = it },
                 label = { Text("Enter task") },
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    if (newTask.isNotBlank()) {
-                        val updatedTasks = tasks + newTask
-                        tasks = updatedTasks
-                        coroutineScope.launch {
-                            taskDataStore.saveTasks(updatedTasks.toSet())
-                        }
-                        newTask = ""
+            Button(onClick = {
+                if (newTaskText.isNotBlank()) {
+                    val newTask = Task(name = newTaskText, reminderSet = isReminderSet)
+                    val updatedTasks = tasks + newTask
+                    tasks = updatedTasks
+                    coroutineScope.launch {
+                        taskDataStore.saveTasks(updatedTasks)
                     }
+                    newTaskText = ""
+                    isReminderSet = false
                 }
-            ) {
+            }) {
                 Text("Add")
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Set Reminder")
+            Spacer(modifier = Modifier.width(8.dp))
+            Switch(
+                checked = isReminderSet,
+                onCheckedChange = { isReminderSet = it }
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -94,10 +100,9 @@ fun TaskListScreen(context: Context) {
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
-
                 ) {
                     Text(
-                        text = "• $task",
+                        text = "• ${task.name}",
                         fontSize = 18.sp,
                         modifier = Modifier.weight(1f)
                     )
@@ -105,7 +110,7 @@ fun TaskListScreen(context: Context) {
                         val updatedTasks = tasks - task
                         tasks = updatedTasks
                         coroutineScope.launch {
-                            taskDataStore.saveTasks(updatedTasks.toSet())
+                            taskDataStore.saveTasks(updatedTasks)
                         }
                     }) {
                         Icon(
@@ -113,10 +118,8 @@ fun TaskListScreen(context: Context) {
                             contentDescription = "Delete"
                         )
                     }
-
                 }
             }
         }
     }
 }
-
