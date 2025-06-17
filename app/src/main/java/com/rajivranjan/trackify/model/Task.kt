@@ -1,6 +1,8 @@
 package com.rajivranjan.trackify.model
 
 data class Task(
-    val name: String,
-    val reminderSet: Boolean
+    val title: String,
+    val isReminderSet: Boolean = false,
+    val hour: Int? = null,
+    val minute: Int? = null
 )

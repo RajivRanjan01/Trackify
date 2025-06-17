@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import com.rajivranjan.trackify.model.Task
 import com.rajivranjan.trackify.ui.theme.TrackifyTheme
 import com.rajivranjan.trackify.util.TaskDataStore
+import com.rajivranjan.trackify.util.AlarmHelper
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -38,12 +39,24 @@ fun TaskListScreen(context: Context) {
 
     var newTaskText by remember { mutableStateOf("") }
     var isReminderSet by remember { mutableStateOf(false) }
+    var pickedHour by remember { mutableStateOf<Int?>(null) }
+    var pickedMinute by remember { mutableStateOf<Int?>(null) }
 
     val tasksFlow by taskDataStore.tasksFlow.collectAsState(initial = emptyList())
     var tasks by remember { mutableStateOf(tasksFlow) }
 
     LaunchedEffect(tasksFlow) {
         tasks = tasksFlow
+    }
+
+    if (isReminderSet && pickedHour == null && pickedMinute == null) {
+        ShowTimePicker(
+            onTimeChosen = { h, m ->
+                pickedHour = h
+                pickedMinute = m
+            },
+            onDismiss = { isReminderSet = false }
+        )
     }
 
     Column(
@@ -63,14 +76,30 @@ fun TaskListScreen(context: Context) {
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
                 if (newTaskText.isNotBlank()) {
-                    val newTask = Task(name = newTaskText, reminderSet = isReminderSet)
-                    val updatedTasks = tasks + newTask
-                    tasks = updatedTasks
-                    coroutineScope.launch {
-                        taskDataStore.saveTasks(updatedTasks)
+                    val newTask = Task(
+                        title = newTaskText,
+                        isReminderSet = isReminderSet,
+                        hour = pickedHour,
+                        minute = pickedMinute
+                    )
+
+                    val updated = tasks + newTask
+                    tasks = updated
+                    coroutineScope.launch { taskDataStore.saveTasks(updated) }
+
+                    if (isReminderSet && pickedHour != null && pickedMinute != null) {
+                        AlarmHelper.setAlarm(
+                            context = context,
+                            taskTitle = newTask.title,
+                            timeInMillis = AlarmHelper.getTimeInMillis(pickedHour!!, pickedMinute!!),
+                            taskId = newTask.title.hashCode()
+                        )
                     }
+
                     newTaskText = ""
                     isReminderSet = false
+                    pickedHour = null
+                    pickedMinute = null
                 }
             }) {
                 Text("Add")
@@ -80,11 +109,21 @@ fun TaskListScreen(context: Context) {
         Spacer(modifier = Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Set Reminder")
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(Modifier.width(8.dp))
             Switch(
                 checked = isReminderSet,
-                onCheckedChange = { isReminderSet = it }
+                onCheckedChange = {
+                    isReminderSet = it
+                    if (!it) {
+                        pickedHour = null
+                        pickedMinute = null
+                    }
+                }
             )
+            if (pickedHour != null && pickedMinute != null) {
+                Spacer(Modifier.width(8.dp))
+                Text(String.format("%02d:%02d", pickedHour, pickedMinute))
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -102,15 +141,18 @@ fun TaskListScreen(context: Context) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "• ${task.name}",
+                        text = "• ${task.title}",
                         fontSize = 18.sp,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = {
-                        val updatedTasks = tasks - task
-                        tasks = updatedTasks
+                        val updated = tasks - task
+                        tasks = updated
                         coroutineScope.launch {
-                            taskDataStore.saveTasks(updatedTasks)
+                            taskDataStore.saveTasks(updated)
+                        }
+                        if (task.isReminderSet) {
+                            AlarmHelper.cancelAlarm(context, task.title.hashCode())
                         }
                     }) {
                         Icon(
@@ -122,4 +164,29 @@ fun TaskListScreen(context: Context) {
             }
         }
     }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+
+private fun ShowTimePicker(
+    onTimeChosen: (hour: Int, minute: Int) -> Unit,
+    onDismiss: () -> Unit
+)
+{
+    val timePickerState = rememberTimePickerState()
+    AlertDialog(
+        onDismissRequest = { onDismiss() },
+        confirmButton = {
+            TextButton(onClick = {
+                onTimeChosen(timePickerState.hour, timePickerState.minute)
+                onDismiss()
+            }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+        title = { Text("Pick reminder time") },
+        text = { TimePicker(state = timePickerState) }
+    )
 }
