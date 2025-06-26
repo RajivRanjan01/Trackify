@@ -4,10 +4,13 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.rajivranjan.trackify.receiver.AlarmReceiver
 import java.util.Calendar
 
 object AlarmHelper {
+
+    private const val TAG = "AlarmHelper"
 
     fun setAlarm(context: Context, taskTitle: String, timeInMillis: Long, taskId: Int) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -22,6 +25,8 @@ object AlarmHelper {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+        Log.d(TAG, "Setting alarm for $taskTitle at $timeInMillis")
 
         alarmManager.setExactAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
@@ -41,6 +46,8 @@ object AlarmHelper {
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(pendingIntent)
+
+        Log.d(TAG, "Cancelled alarm for taskId: $taskId")
     }
 
     fun getTimeInMillis(hour: Int, minute: Int): Long {
@@ -50,6 +57,13 @@ object AlarmHelper {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
+
+        if (calendar.timeInMillis <= System.currentTimeMillis()) {
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+        }
+
+        Log.d(TAG, "Computed timeInMillis: ${calendar.timeInMillis}")
+
         return calendar.timeInMillis
     }
 }

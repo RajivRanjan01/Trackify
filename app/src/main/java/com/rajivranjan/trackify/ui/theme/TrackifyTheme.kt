@@ -26,6 +26,7 @@ fun TrackifyTheme(
     MaterialTheme(
         colorScheme = colors,
         typography = Typography,
+        shapes = Shapes, // ✅ Add this line to include shapes
         content = content
     )
 }
